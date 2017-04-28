@@ -8,6 +8,8 @@ var helpers = require('./helpers');
 const db = require('./db');
 var Client = require('node-rest-client').Client;
 
+var sessions = new Map();
+
 module.exports = {
 
     createSparkBot: function createSparkBot(webserver, publicAddress, id, botToken) {
@@ -107,18 +109,22 @@ module.exports = {
         controller.on('bot_space_join', function (bot, message) {
             bot.reply(message, 'This trusty bot is here to help.');
         });
-        controller.on('direct_mention', function (bot, message) {
-            const query = helpers.responseQuery;
-            db.query(query, [id, message.text])
-                .then((res) => {
-                    var actionId = res.rows[0].actionid;
-                    var actionName = res.rows[0].actionname;
-                    var actionUrl = res.rows[0].actionurl;
-                    var fallback = res.rows[0].text;
-                    console.log('actionId: ', actionId);
-                    console.log('actionName: ', actionName);
-                    console.log('actionUrl: ', actionUrl);
-                    console.log('text: ', fallback);
+        controller.on('direct_mention,direct_message', function (bot, message) {
+            function doAction() {
+                var actionReady = true;
+                for (var i = 0; i < sessions.get(personId).params.length; i++) {
+                    var param = sessions.get(personId).params[i];
+                    if (param.provided == false) {
+                        bot.reply(message, param.paramMissingMsg);
+                        actionReady = false; // Action can not be called because a parameter is missing
+                        break;
+                    }
+                }
+                if (actionReady === true) {
+                    var actionId = sessions.get(personId).actionId;
+                    var actionName = sessions.get(personId).actionName;
+                    var actionUrl = sessions.get(personId).actionUrl;
+                    var fallback = sessions.get(personId).fallback ? sessions.get(personId).fallback : "";
                     if (actionName && actionUrl) {
                         var client = new Client();
                         // set content-type header and data as json in args parameter 
@@ -143,32 +149,60 @@ module.exports = {
                             } catch (err) {
                                 console.log(err);
                                 bot.reply(message, fallback);
+                            } finally {
+                                 sessions.delete(personId);
                             }
                         });
                     } else {
                         bot.reply(message, fallback);
                     }
-                })
-                .catch((err) => {
-                    console.error('error running query', err);
-                });
-        });
-        controller.on('direct_message', function (bot, message) {
-            const query = helpers.responseQuery;
-            db.query(query, [id, message.text])
-                .then((res) => {
-                    console.log('actionId:', res.rows[0].actionId);
-                    console.log('text:', res.rows[0].text);
-                    bot.reply(message, res.rows[0].text);
-                })
-                .catch((err) => {
-                    console.error('error running query', err);
-                });
-            /* if (message.original_message.files) {
-                 bot.retrieveFileInfo(message.original_message.files[0], function (err, file) {
-                     bot.reply(message, 'I also got an attached file called ' + file.filename);
-                 });
-             }*/
+                }
+            }
+            var personId = message.original_message.personId;
+            if (sessions.has(personId)) {
+                for (var i = 0; i < sessions.get(personId).params.length; i++) {
+                    var param = sessions.get(personId).params[i];
+                    if (param.provided == false) {
+                        param.value = message.text;
+                        param.provided = true;
+                        break;
+                    }
+                }
+                doAction();
+            } else {
+                const query = helpers.responseQuery;
+                db.query(query, [id, message.text])
+                    .then((res) => {
+                        var actionId = res.rows[0].actionid;
+                        var actionName = res.rows[0].actionname;
+                        var actionUrl = res.rows[0].actionurl;
+                        var fallback = res.rows[0].text;
+
+                        console.log('actionId: ', actionId);
+                        console.log('actionName: ', actionName);
+                        console.log('actionUrl: ', actionUrl);
+                        console.log('text: ', fallback);
+
+                        console.log('original_message.data', message);
+                        // Create a new session if it does not exist
+                        var context = new Object();
+                        context.actionId = actionId;
+                        context.actionName = actionName;
+                        context.actionUrl = actionUrl;
+                        context.fallback = fallback;
+                        context.params = [];
+                        for (var i = 0; i < res.rows.length; i++) {
+                            if (res.rows[i].paramid) {
+                                var param = { id: res.rows[i].paramid, paramMissingMsg: res.rows[i].parammissingmsg, provided: false };
+                                context.params.push(param);
+                            }
+                        }
+                        sessions.set(personId, context);
+                        doAction();
+                    }).catch((err) => {
+                        console.error('error running query', err);
+                    });
+            }
         });
         return controller;
     }
