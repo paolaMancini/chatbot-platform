@@ -1,6 +1,6 @@
 const db = require('./db');
 
-module.exports.responseQuery = 'SELECT am.action_id as actionId, a.name as actionName, af.url as actionUrl, rest.text as text, ap.id as paramId, misst.text as paramMissingMsg ' +
+module.exports.responseQuery = 'SELECT am.action_id as actionId, a.name as actionName, af.url as actionUrl, rest.text as text, ap.id as paramId, ap.name as paramName, misst.text as paramMissingMsg ' +
     ' FROM BOTS b JOIN MODELS m on b.model_id = m.id ' +
     ' join ACTION_MAPPINGS am on am.model_id = m.id ' +
     ' left join ACTIONS a on a.id = am.action_id ' +

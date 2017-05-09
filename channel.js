@@ -127,9 +127,14 @@ module.exports = {
                     var fallback = sessions.get(personId).fallback ? sessions.get(personId).fallback : "";
                     if (actionName && actionUrl) {
                         var client = new Client();
-                        // set content-type header and data as json in args parameter 
+                        // set content-type header and data as json in args parameter
+                        var params = [];
+                        var sessionParams = sessions.get(personId).params;
+                        for (var i = 0; i < sessionParams.length; i++) {
+                            params.push({ name: sessionParams[i].paramName, value: sessionParams[i].value })
+                        }
                         var args = {
-                            data: { action: actionName },
+                            data: { botToken: botToken, action: actionName, params: params, spaceId: message.original_message.roomId },
                             headers: { "Content-Type": "application/json" },
                             requestConfig: {
                                 timeout: 30000 //request timeout in milliseconds 
@@ -150,7 +155,7 @@ module.exports = {
                                 console.log(err);
                                 bot.reply(message, fallback);
                             } finally {
-                                 sessions.delete(personId);
+                                sessions.delete(personId);
                             }
                         });
                     } else {
@@ -190,10 +195,11 @@ module.exports = {
                         context.actionName = actionName;
                         context.actionUrl = actionUrl;
                         context.fallback = fallback;
+                        
                         context.params = [];
                         for (var i = 0; i < res.rows.length; i++) {
                             if (res.rows[i].paramid) {
-                                var param = { id: res.rows[i].paramid, paramMissingMsg: res.rows[i].parammissingmsg, provided: false };
+                                var param = { id: res.rows[i].paramid, paramName: res.rows[i].paramname, paramMissingMsg: res.rows[i].parammissingmsg, provided: false };
                                 context.params.push(param);
                             }
                         }
