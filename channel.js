@@ -33,7 +33,7 @@ module.exports = {
         //controller.config.port = port;
 
         var webhook_name = controller.config.webhook_name || 'Botkit Firehose';
-
+        controller.log('** webhook_name=: ' +webhook_name);
         controller.log(
             '** Serving webhook endpoints for Cisco Spark Platform at: ' +
             'http://' + controller.config.hostname + ':' + controller.config.port + '/' + id + '/ciscospark/receive');
